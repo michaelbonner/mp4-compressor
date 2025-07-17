@@ -1,0 +1,37 @@
+<svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="64"
+    height="64"
+    viewBox="0 0 64 64"
+    fill="none"
+>
+    <rect width="64" height="64" rx="8" fill="#F0F0F0" />
+    <path
+        d="M16 16h32v32H16V16zm4 4v24h24V20H20zm10 12h4v4h-4v-4zm0-8h4v4h-4v-4z"
+        fill="#4CAF50"
+    />
+    <path
+        d="M48 32l-8 8v-6H32v-4h8v-6l8 8z"
+        fill="#FF5722"
+    />
+    <path
+        d="M10 10h4v4h-4V10zm0 10h4v4h-4v-4zm0 10h4v4h-4v-4z"
+        fill="#FFC107"
+    />
+    <path
+        d="M50 10h4v4h-4V10zm0 10h4v4h-4v-4zm0 10h4v4h-4v-4z"
+        fill="#FFC107"
+    />
+    <path
+        d="M32 50l-6 6 6 6v-4h4v-4h-4v-4z"
+        fill="#2196F3"
+    />
+    <path
+        d="M34 50l-2 2 2 2v-4h-2z"
+        fill="#1976D2"
+    />
+    <path
+        d="M48 32c2 0 4 0 6 2s2 4 2 6-2 4-4 4-4-2-6-2-4 0-6-2-2-4-2-6 2-4 4-4z"
+        fill="#FF9800"
+    />
+</svg>
