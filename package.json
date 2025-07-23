@@ -12,7 +12,7 @@
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/typography": "^0.5.16",
     "typescript": "~5.8.3",
-    "vite": "^7.0.4"
+    "vite": "^7.0.5"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.11.6",
