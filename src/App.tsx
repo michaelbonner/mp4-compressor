@@ -213,8 +213,9 @@ const App = () => {
 
         setMp4Files(processedMp4Files);
         setThumbnailFiles(processedThumbnailFiles);
-      } catch (err: any) {
-        updateFileProgress(0, `Error: ${err.message}`, false, true);
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
+        updateFileProgress(0, `Error: ${errorMessage}`, false, true);
       } finally {
         currentFileIndexRef.current = -1; // Reset current file index
       }
