@@ -128,7 +128,7 @@ const App = () => {
                   hasError,
                   fileSizeBeforeCompression:
                     fileSizeBeforeCompression ??
-                    fp.fileSizeAfterCompression ??
+                    fp.fileSizeBeforeCompression ??
                     0,
                   fileSizeAfterCompression:
                     fileSizeAfterCompression ??
