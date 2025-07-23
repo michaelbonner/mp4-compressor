@@ -202,7 +202,6 @@ const App = () => {
         ffmpeg.FS("unlink", outputMp4Name);
         ffmpeg.FS("unlink", outputThumbnailName);
 
-        updateFileProgress(100, "Complete!", true);
         updateFileProgress(
           100,
           "Complete!",
