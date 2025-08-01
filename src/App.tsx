@@ -254,7 +254,7 @@ const App = () => {
   };
 
   return (
-    <div className="prose prose-lg max-w-7xl container mx-auto py-8">
+    <div className="prose prose-lg max-w-7xl container mx-auto py-8 px-4">
       <h1 className="text-center">MP4 Compressor</h1>
       <div
         className={`w-full p-8 rounded-lg shadow-md text-center transition-colors ${
