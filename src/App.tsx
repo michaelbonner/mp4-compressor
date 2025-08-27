@@ -175,7 +175,9 @@ const App = () => {
 
         updateFileProgress(98, "Creating thumbnail...");
         const mp4Data = ffmpeg.FS("readFile", outputMp4Name);
-        const mp4Blob = new Blob([mp4Data.buffer], { type: "video/mp4" });
+        const mp4Blob = new Blob([mp4Data.buffer as ArrayBuffer], {
+          type: "video/mp4",
+        });
         processedMp4Files.push({ filename: outputMp4Name, blob: mp4Blob });
 
         // Extract first frame as jpg
@@ -191,7 +193,9 @@ const App = () => {
 
         updateFileProgress(99, "Finalizing...");
         const thumbData = ffmpeg.FS("readFile", outputThumbnailName);
-        const thumbBlob = new Blob([thumbData.buffer], { type: "image/jpeg" });
+        const thumbBlob = new Blob([thumbData.buffer as ArrayBuffer], {
+          type: "image/jpeg",
+        });
         processedThumbnailFiles.push({
           filename: outputThumbnailName,
           blob: thumbBlob,
@@ -331,7 +335,9 @@ const App = () => {
                         {mp4Files[index] && (
                           <a
                             aria-label="Download MP4"
-                            href={URL.createObjectURL(mp4Files[index].blob)}
+                            href={URL.createObjectURL(
+                              mp4Files[index].blob as Blob
+                            )}
                             download={mp4Files[index].filename}
                             className="hover:underline text-sky-600 hover:text-sky-800 flex items-center gap-1"
                           >
@@ -342,7 +348,7 @@ const App = () => {
                           <a
                             aria-label="Download JPG"
                             href={URL.createObjectURL(
-                              thumbnailFiles[index].blob
+                              thumbnailFiles[index].blob as Blob
                             )}
                             download={thumbnailFiles[index].filename}
                             className="hover:underline text-sky-600 hover:text-sky-800 flex items-center gap-1"
