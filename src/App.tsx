@@ -405,7 +405,7 @@ const App = () => {
           <a href="https://bootpackdigital.com/">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              enable-background="new 0 0 922 278"
+              enableBackground="new 0 0 922 278"
               viewBox="0 0 922 278"
               className="w-80 mx-auto"
             >
