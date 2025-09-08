@@ -1,4 +1,5 @@
-import { createFFmpeg, fetchFile } from "@ffmpeg/ffmpeg";
+import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { fetchFile, toBlobURL } from "@ffmpeg/util";
 import JSZip from "jszip";
 import React, { useRef, useState } from "react";
 import { DownloadIcon } from "./components/DownloadIcon";
@@ -19,6 +20,8 @@ interface ProcessedFile {
 }
 
 const App = () => {
+  const [loaded, setLoaded] = useState(false);
+  const ffmpegRef = useRef(new FFmpeg());
   const [statusText, setStatusText] = useState("");
   const [fileProgresses, setFileProgresses] = useState<FileProgress[]>([]);
   const [mp4Files, setMp4Files] = useState<ProcessedFile[]>([]);
@@ -27,31 +30,64 @@ const App = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const currentFileIndexRef = useRef<number>(-1);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messageRef = useRef<HTMLParagraphElement | null>(null);
 
   const convertBytesToMB = (bytes: number) => {
     return (bytes / 1024 / 1024).toFixed(2) + " MB";
   };
 
-  const ffmpeg = createFFmpeg({
-    log: true,
-    progress: ({ ratio }) => {
-      // Update progress for the currently processing file
-      const currentIndex = currentFileIndexRef.current;
-      if (currentIndex >= 0 && ratio > 0) {
-        setFileProgresses((prev) =>
-          prev.map((fp, index) =>
-            index === currentIndex
-              ? {
-                  ...fp,
-                  progress: Math.round(2 + ratio * 98), // 2% base + 98% for compression
-                  status: "",
-                }
-              : fp
-          )
-        );
-      }
-    },
-  });
+  const load = async () => {
+    const baseURL =
+      "https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.10/dist/esm";
+    const ffmpeg = ffmpegRef.current;
+
+    ffmpeg.on("log", ({ message }) => {
+      if (messageRef.current) messageRef.current.innerHTML = message;
+    });
+    ffmpeg.on("progress", ({ progress, time }) => {
+      console.log("progress", progress);
+      console.log("time", time);
+    });
+
+    // toBlobURL is used to bypass CORS issue, urls with the same
+    // domain can be used directly.
+    await ffmpeg.load({
+      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
+      wasmURL: await toBlobURL(
+        `${baseURL}/ffmpeg-core.wasm`,
+        "application/wasm"
+      ),
+      workerURL: await toBlobURL(
+        `${baseURL}/ffmpeg-core.worker.js`,
+        "text/javascript"
+      ),
+    });
+    setLoaded(true);
+  };
+
+  load();
+
+  // const ffmpeg = new FFmpeg();
+  // {
+  // log: true,
+  // progress: ({ ratio }) => {
+  //   // Update progress for the currently processing file
+  //   const currentIndex = currentFileIndexRef.current;
+  //   if (currentIndex >= 0 && ratio > 0) {
+  //     setFileProgresses((prev) =>
+  //       prev.map((fp, index) =>
+  //         index === currentIndex
+  //           ? {
+  //               ...fp,
+  //               progress: Math.round(2 + ratio * 98), // 2% base + 98% for compression
+  //               status: "",
+  //             }
+  //           : fp
+  //       )
+  //     );
+  //   }
+  // },
+  // }
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -87,8 +123,6 @@ const App = () => {
     setFileProgresses([]);
     setMp4Files([]);
     setThumbnailFiles([]);
-
-    if (!ffmpeg.isLoaded()) await ffmpeg.load();
 
     const newFileProgresses: FileProgress[] = files.map((file) => ({
       filename: file.name,
@@ -146,8 +180,10 @@ const App = () => {
       const outputThumbnailName = `${baseName}-thumbnail.jpg`;
 
       try {
+        const ffmpeg = ffmpegRef.current;
+
         updateFileProgress(1, "Loading file...");
-        ffmpeg.FS("writeFile", inputName, await fetchFile(file));
+        await ffmpeg.writeFile(inputName, await fetchFile(file));
 
         updateFileProgress(
           2,
@@ -157,54 +193,56 @@ const App = () => {
           file.size
         );
         // The FFmpeg progress callback will update progress from 10% to ~85%
-        await ffmpeg.run(
+        await ffmpeg.exec([
           "-i",
           inputName,
-          "-c:v",
-          "libx264",
-          "-crf",
-          "23",
-          "-preset",
-          "medium",
-          "-c:a",
-          "aac",
-          "-b:a",
-          "128k",
-          outputMp4Name
-        );
+          // "-c:v",
+          // "libx264",
+          // "-crf",
+          // "23",
+          // "-preset",
+          // "medium",
+          // "-c:a",
+          // "aac",
+          // "-b:a",
+          // "128k",
+          outputMp4Name,
+        ]);
 
         updateFileProgress(98, "Creating thumbnail...");
-        const mp4Data = ffmpeg.FS("readFile", outputMp4Name);
-        const mp4Blob = new Blob([mp4Data.buffer as ArrayBuffer], {
-          type: "video/mp4",
-        });
+        const mp4Data = await ffmpeg.readFile(outputMp4Name);
+        const mp4Blob = new Blob(
+          [new Uint8Array(mp4Data as unknown as ArrayBuffer)],
+          { type: "video/mp4" }
+        );
         processedMp4Files.push({ filename: outputMp4Name, blob: mp4Blob });
 
         // Extract first frame as jpg
-        await ffmpeg.run(
+        await ffmpeg.exec([
           "-i",
           inputName,
-          "-ss",
-          "0",
-          "-frames:v",
-          "1",
-          outputThumbnailName
-        );
+          // "-ss",
+          // "0",
+          // "-frames:v",
+          // "1",
+          outputThumbnailName,
+        ]);
 
         updateFileProgress(99, "Finalizing...");
-        const thumbData = ffmpeg.FS("readFile", outputThumbnailName);
-        const thumbBlob = new Blob([thumbData.buffer as ArrayBuffer], {
-          type: "image/jpeg",
-        });
+        const thumbData = await ffmpeg.readFile(outputThumbnailName);
+        const thumbBlob = new Blob(
+          [new Uint8Array(thumbData as unknown as ArrayBuffer).buffer],
+          { type: "image/jpeg" }
+        );
         processedThumbnailFiles.push({
           filename: outputThumbnailName,
           blob: thumbBlob,
         });
 
         // Clean up FS
-        ffmpeg.FS("unlink", inputName);
-        ffmpeg.FS("unlink", outputMp4Name);
-        ffmpeg.FS("unlink", outputThumbnailName);
+        ffmpeg.deleteFile(inputName);
+        ffmpeg.deleteFile(outputMp4Name);
+        ffmpeg.deleteFile(outputThumbnailName);
 
         updateFileProgress(
           100,
@@ -260,126 +298,137 @@ const App = () => {
   return (
     <div className="prose prose-lg max-w-7xl container mx-auto py-8 px-4">
       <h1 className="text-center">MP4 Compressor</h1>
-      <div
-        className={`w-full p-8 rounded-lg shadow-md text-center transition-colors ${
-          isDragover ? "bg-sky-600/20" : "bg-white"
-        }`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <p>
-          Drag & drop MP4 files here
-          <br />
-          or
-          <br />
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="video/mp4"
-            multiple
-            onChange={handleFileInput}
-            className="border border-sky-600/40 p-4 rounded-xl text-sm text-sky-800 file:rounded-md file:mr-5 file:py-1 file:px-3 file:border-[1px] file:text-xs file:font-medium file:bg-sky-50 file:text-sky-700 hover:file:cursor-pointer hover:file:bg-sky-50 hover:file:text-sky-700"
-          />
-        </p>
 
-        <div className="text-slate-500 text-sm mt-4">
-          {statusText ?? <>&nbsp;</>}
+      {!loaded ? (
+        <div
+          className={`w-full p-8 rounded-lg shadow-md text-center transition-colors bg-white`}
+        >
+          <p className="animate-pulse">Loading compression binary</p>
         </div>
+      ) : (
+        <div
+          className={`w-full p-8 rounded-lg shadow-md text-center transition-colors ${
+            isDragover ? "bg-sky-600/20" : "bg-white"
+          }`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <p>
+            Drag & drop MP4 files here
+            <br />
+            or
+            <br />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/mp4"
+              multiple
+              onChange={handleFileInput}
+              className="border border-sky-600/40 p-4 rounded-xl text-sm text-sky-800 file:rounded-md file:mr-5 file:py-1 file:px-3 file:border-[1px] file:text-xs file:font-medium file:bg-sky-50 file:text-sky-700 hover:file:cursor-pointer hover:file:bg-sky-50 hover:file:text-sky-700"
+            />
+          </p>
 
-        {fileProgresses.length > 0 && (
-          <div className="mt-4">
-            <table className="w-full [&_td]:align-top">
-              <thead>
-                <tr>
-                  <th>File</th>
-                  <th>Progress</th>
-                  <th>Original</th>
-                  <th>Compressed</th>
-                  <th className="min-w-[100px]"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {fileProgresses.map((fp, index) => (
-                  <tr key={index}>
-                    <td className="flex justify-between items-center mb-2">
-                      <h4 className="not-prose break-all text-sm">
-                        {fp.filename}
-                      </h4>
-                    </td>
-                    <td>
-                      <div className="progress-bar min-w-[200px] w-full h-5 bg-gray-200 rounded-full overflow-hidden">
-                        <div
-                          className={`progress-fill h-full transition-all duration-500 ease-in-out ${
-                            fp.hasError
-                              ? "bg-red-500"
-                              : fp.isComplete
-                              ? "bg-green-600"
-                              : "bg-sky-600"
-                          }`}
-                          style={{ width: `${fp.progress}%` }}
-                        />
-                      </div>
-                      <div className="text-sm font-semibold text-gray-700 text-center">
-                        {fp.progress}%
-                      </div>
-                    </td>
-                    <td>{convertBytesToMB(fp.fileSizeBeforeCompression)}</td>
-                    <td>
-                      {fp.fileSizeAfterCompression
-                        ? convertBytesToMB(fp.fileSizeAfterCompression)
-                        : ""}
-                    </td>
-                    <td>
-                      <p className="flex flex-wrap gap-3 not-prose">
-                        {mp4Files[index] && (
-                          <a
-                            aria-label="Download MP4"
-                            href={URL.createObjectURL(
-                              mp4Files[index].blob as Blob
-                            )}
-                            download={mp4Files[index].filename}
-                            className="hover:underline text-sky-600 hover:text-sky-800 flex items-center gap-1"
-                          >
-                            <DownloadIcon className="size-3" /> MP4
-                          </a>
-                        )}
-                        {thumbnailFiles[index] && (
-                          <a
-                            aria-label="Download JPG"
-                            href={URL.createObjectURL(
-                              thumbnailFiles[index].blob as Blob
-                            )}
-                            download={thumbnailFiles[index].filename}
-                            className="hover:underline text-sky-600 hover:text-sky-800 flex items-center gap-1"
-                          >
-                            <DownloadIcon className="size-3" /> JPG
-                          </a>
-                        )}
-                      </p>
-                    </td>
+          <p ref={messageRef}></p>
+
+          <div className="text-slate-500 text-sm mt-4">
+            {statusText ?? <>&nbsp;</>}
+          </div>
+
+          {fileProgresses.length > 0 && (
+            <div className="mt-4">
+              <table className="w-full [&_td]:align-top">
+                <thead>
+                  <tr>
+                    <th>File</th>
+                    <th>Progress</th>
+                    <th>Original</th>
+                    <th>Compressed</th>
+                    <th className="min-w-[100px]"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {fileProgresses.map((fp, index) => (
+                    <tr key={index}>
+                      <td className="flex justify-between items-center mb-2">
+                        <h4 className="not-prose break-all text-sm">
+                          {fp.filename}
+                        </h4>
+                      </td>
+                      <td>
+                        <div className="progress-bar min-w-[200px] w-full h-5 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className={`progress-fill h-full transition-all duration-500 ease-in-out ${
+                              fp.hasError
+                                ? "bg-red-500"
+                                : fp.isComplete
+                                ? "bg-green-600"
+                                : "bg-sky-600"
+                            }`}
+                            style={{ width: `${fp.progress}%` }}
+                          />
+                        </div>
+                        <div className="text-sm font-semibold text-gray-700 text-center">
+                          {fp.progress}%
+                        </div>
+                      </td>
+                      <td>{convertBytesToMB(fp.fileSizeBeforeCompression)}</td>
+                      <td>
+                        {fp.fileSizeAfterCompression
+                          ? convertBytesToMB(fp.fileSizeAfterCompression)
+                          : ""}
+                      </td>
+                      <td>
+                        <p className="flex flex-wrap gap-3 not-prose">
+                          {mp4Files[index] && (
+                            <a
+                              aria-label="Download MP4"
+                              href={URL.createObjectURL(
+                                mp4Files[index].blob as Blob
+                              )}
+                              download={mp4Files[index].filename}
+                              className="hover:underline text-sky-600 hover:text-sky-800 flex items-center gap-1"
+                            >
+                              <DownloadIcon className="size-3" /> MP4
+                            </a>
+                          )}
+                          {thumbnailFiles[index] && (
+                            <a
+                              aria-label="Download JPG"
+                              href={URL.createObjectURL(
+                                thumbnailFiles[index].blob as Blob
+                              )}
+                              download={thumbnailFiles[index].filename}
+                              className="hover:underline text-sky-600 hover:text-sky-800 flex items-center gap-1"
+                            >
+                              <DownloadIcon className="size-3" /> JPG
+                            </a>
+                          )}
+                        </p>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-        {(mp4Files.length > 0 || thumbnailFiles.length > 0) && (
-          <div className="flex justify-center mt-4">
-            <button
-              onClick={downloadAll}
-              disabled={isDownloading}
-              className="flex items-center gap-x-1.5 rounded-md bg-sky-600 px-2.5 py-1.5 text-sm font-semibold text-white shadow-xs hover:bg-sky-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:opacity-50"
-            >
-              <DownloadIcon className="size-4" />
-              <span>
-                {isDownloading ? "Zipping..." : "Download All as ZIP"}
-              </span>
-            </button>
-          </div>
-        )}
-      </div>
+          {(mp4Files.length > 0 || thumbnailFiles.length > 0) && (
+            <div className="flex justify-center mt-4">
+              <button
+                onClick={downloadAll}
+                disabled={isDownloading}
+                className="flex items-center gap-x-1.5 rounded-md bg-sky-600 px-2.5 py-1.5 text-sm font-semibold text-white shadow-xs hover:bg-sky-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:opacity-50"
+              >
+                <DownloadIcon className="size-4" />
+                <span>
+                  {isDownloading ? "Zipping..." : "Download All as ZIP"}
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="text-center mt-8 prose-sm prose mx-auto max-w-3xl">
         <p>
