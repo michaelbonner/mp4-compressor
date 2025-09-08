@@ -1,7 +1,7 @@
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
 import JSZip from "jszip";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { DownloadIcon } from "./components/DownloadIcon";
 
 interface FileProgress {
@@ -30,64 +30,61 @@ const App = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const currentFileIndexRef = useRef<number>(-1);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const messageRef = useRef<HTMLParagraphElement | null>(null);
 
   const convertBytesToMB = (bytes: number) => {
     return (bytes / 1024 / 1024).toFixed(2) + " MB";
   };
 
   const load = async () => {
-    const baseURL =
-      "https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.10/dist/esm";
-    const ffmpeg = ffmpegRef.current;
+    try {
+      const baseURL =
+        "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm"; // Use single-threaded version for better compatibility
+      const ffmpeg = ffmpegRef.current;
 
-    ffmpeg.on("log", ({ message }) => {
-      if (messageRef.current) messageRef.current.innerHTML = message;
-    });
-    ffmpeg.on("progress", ({ progress, time }) => {
-      console.log("progress", progress);
-      console.log("time", time);
-    });
+      ffmpeg.on("progress", ({ progress }) => {
+        // Update progress for the currently processing file
+        const currentIndex = currentFileIndexRef.current;
+        if (currentIndex >= 0 && progress >= 0) {
+          const calculatedProgress = Math.round(2 + progress * 96); // 2% base + 96% for compression (leaving 2% for finalization)
+          setFileProgresses((prev) =>
+            prev.map((fp, index) =>
+              index === currentIndex
+                ? {
+                    ...fp,
+                    progress: calculatedProgress,
+                    status: progress < 1 ? "Compressing..." : "Almost done...",
+                  }
+                : fp
+            )
+          );
+        }
+      });
 
-    // toBlobURL is used to bypass CORS issue, urls with the same
-    // domain can be used directly.
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
-      wasmURL: await toBlobURL(
-        `${baseURL}/ffmpeg-core.wasm`,
-        "application/wasm"
-      ),
-      workerURL: await toBlobURL(
-        `${baseURL}/ffmpeg-core.worker.js`,
-        "text/javascript"
-      ),
-    });
-    setLoaded(true);
+      console.log("Loading FFmpeg...");
+      // toBlobURL is used to bypass CORS issue, urls with the same
+      // domain can be used directly.
+      await ffmpeg.load({
+        coreURL: await toBlobURL(
+          `${baseURL}/ffmpeg-core.js`,
+          "text/javascript"
+        ),
+        wasmURL: await toBlobURL(
+          `${baseURL}/ffmpeg-core.wasm`,
+          "application/wasm"
+        ),
+      });
+      setLoaded(true);
+    } catch (error) {
+      console.error("Failed to load FFmpeg:", error);
+      setStatusText(
+        "Failed to load compression engine. Please refresh the page."
+      );
+    }
   };
 
-  load();
-
-  // const ffmpeg = new FFmpeg();
-  // {
-  // log: true,
-  // progress: ({ ratio }) => {
-  //   // Update progress for the currently processing file
-  //   const currentIndex = currentFileIndexRef.current;
-  //   if (currentIndex >= 0 && ratio > 0) {
-  //     setFileProgresses((prev) =>
-  //       prev.map((fp, index) =>
-  //         index === currentIndex
-  //           ? {
-  //               ...fp,
-  //               progress: Math.round(2 + ratio * 98), // 2% base + 98% for compression
-  //               status: "",
-  //             }
-  //           : fp
-  //       )
-  //     );
-  //   }
-  // },
-  // }
+  useEffect(() => {
+    load();
+  }, []);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -183,7 +180,15 @@ const App = () => {
         const ffmpeg = ffmpegRef.current;
 
         updateFileProgress(1, "Loading file...");
+
+        // Test if FFmpeg is working
+        console.log("Testing FFmpeg...");
+        await ffmpeg.exec(["-version"]);
+        console.log("FFmpeg test passed");
+
+        console.log("Writing file to FFmpeg filesystem...");
         await ffmpeg.writeFile(inputName, await fetchFile(file));
+        console.log("File written successfully");
 
         updateFileProgress(
           2,
@@ -192,22 +197,48 @@ const App = () => {
           false,
           file.size
         );
-        // The FFmpeg progress callback will update progress from 10% to ~85%
-        await ffmpeg.exec([
-          "-i",
-          inputName,
-          // "-c:v",
-          // "libx264",
-          // "-crf",
-          // "23",
-          // "-preset",
-          // "medium",
-          // "-c:a",
-          // "aac",
-          // "-b:a",
-          // "128k",
-          outputMp4Name,
-        ]);
+
+        // Manual progress updates as fallback
+        const progressInterval = setInterval(() => {
+          const currentIndex = currentFileIndexRef.current;
+          if (currentIndex >= 0) {
+            setFileProgresses((prev) => {
+              const current = prev[currentIndex];
+              if (current && current.progress < 90 && !current.isComplete) {
+                const newProgress = Math.min(current.progress + 2, 90);
+                return prev.map((fp, index) =>
+                  index === currentIndex
+                    ? { ...fp, progress: newProgress, status: "Compressing..." }
+                    : fp
+                );
+              }
+              return prev;
+            });
+          }
+        }, 2000); // Update every 2 seconds
+
+        try {
+          console.log("Starting FFmpeg compression...");
+          // Simplified compression command
+          await ffmpeg.exec([
+            "-i",
+            inputName,
+            "-c:v",
+            "libx264",
+            "-crf",
+            "28", // Higher CRF for faster compression
+            "-preset",
+            "fast", // Faster preset
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            outputMp4Name,
+          ]);
+          console.log("FFmpeg compression completed");
+        } finally {
+          clearInterval(progressInterval);
+        }
 
         updateFileProgress(98, "Creating thumbnail...");
         const mp4Data = await ffmpeg.readFile(outputMp4Name);
@@ -221,10 +252,10 @@ const App = () => {
         await ffmpeg.exec([
           "-i",
           inputName,
-          // "-ss",
-          // "0",
-          // "-frames:v",
-          // "1",
+          "-ss",
+          "0",
+          "-frames:v",
+          "1",
           outputThumbnailName,
         ]);
 
@@ -328,8 +359,6 @@ const App = () => {
               className="border border-sky-600/40 p-4 rounded-xl text-sm text-sky-800 file:rounded-md file:mr-5 file:py-1 file:px-3 file:border-[1px] file:text-xs file:font-medium file:bg-sky-50 file:text-sky-700 hover:file:cursor-pointer hover:file:bg-sky-50 hover:file:text-sky-700"
             />
           </p>
-
-          <p ref={messageRef}></p>
 
           <div className="text-slate-500 text-sm mt-4">
             {statusText ?? <>&nbsp;</>}
