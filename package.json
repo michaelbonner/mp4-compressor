@@ -17,14 +17,14 @@
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
-    "@tailwindcss/vite": "^4.1.17",
+    "@tailwindcss/vite": "^4.1.18",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
     "jszip": "^3.10.1",
-    "react": "^19.2.1",
-    "react-dom": "^19.2.1",
-    "tailwindcss": "^4.1.17"
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "tailwindcss": "^4.1.18"
   },
   "cspell": {
     "version": "0.2",
