@@ -43,14 +43,15 @@ const App = () => {
       ffmpeg.on("progress", ({ progress }) => {
         // Update progress for the currently processing file
         const currentIndex = currentFileIndexRef.current;
-        if (currentIndex >= 0 && progress >= 0) {
+        if (currentIndex >= 0 && progress >= 0 && progress <= 1) {
           const calculatedProgress = Math.round(2 + progress * 96); // 2% base + 96% for compression (leaving 2% for finalization)
           setFileProgresses((prev) =>
             prev.map((fp, index) =>
               index === currentIndex
                 ? {
                     ...fp,
-                    progress: calculatedProgress,
+                    // Never let progress go backwards mid-file
+                    progress: Math.max(fp.progress, calculatedProgress),
                     status: progress < 1 ? "Compressing..." : "Almost done...",
                   }
                 : fp,
@@ -128,7 +129,6 @@ const App = () => {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      currentFileIndexRef.current = i; // Set current file index for progress callback
       setStatusText(`Compressing (${i + 1}/${files.length}): ${file.name}`);
 
       const updateFileProgress = (
@@ -200,6 +200,7 @@ const App = () => {
 
         try {
           console.log("Starting FFmpeg compression...");
+          currentFileIndexRef.current = i; // Activate progress callback for this exec only
           // Simplified compression command
           await ffmpeg.exec([
             "-i",
@@ -218,6 +219,7 @@ const App = () => {
           ]);
           console.log("FFmpeg compression completed");
         } finally {
+          currentFileIndexRef.current = -1;
           clearInterval(progressInterval);
         }
 
