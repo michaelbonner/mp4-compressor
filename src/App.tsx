@@ -37,8 +37,7 @@ const App = () => {
 
   const load = async () => {
     try {
-      const baseURL =
-        "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm"; // Use single-threaded version for better compatibility
+      const baseURL = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm"; // Use single-threaded version for better compatibility
       const ffmpeg = ffmpegRef.current;
 
       ffmpeg.on("progress", ({ progress }) => {
@@ -54,8 +53,8 @@ const App = () => {
                     progress: calculatedProgress,
                     status: progress < 1 ? "Compressing..." : "Almost done...",
                   }
-                : fp
-            )
+                : fp,
+            ),
           );
         }
       });
@@ -64,26 +63,18 @@ const App = () => {
       // toBlobURL is used to bypass CORS issue, urls with the same
       // domain can be used directly.
       await ffmpeg.load({
-        coreURL: await toBlobURL(
-          `${baseURL}/ffmpeg-core.js`,
-          "text/javascript"
-        ),
-        wasmURL: await toBlobURL(
-          `${baseURL}/ffmpeg-core.wasm`,
-          "application/wasm"
-        ),
+        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
+        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
       });
       setLoaded(true);
     } catch (error) {
       console.error("Failed to load FFmpeg:", error);
-      setStatusText(
-        "Failed to load compression engine. Please refresh the page."
-      );
+      setStatusText("Failed to load compression engine. Please refresh the page.");
     }
   };
 
   useEffect(() => {
-    load();
+    void load();
   }, []);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -99,12 +90,12 @@ const App = () => {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragover(false);
-    handleFiles(e.dataTransfer.files);
+    void handleFiles(e.dataTransfer.files);
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      handleFiles(e.target.files);
+      void handleFiles(e.target.files);
     }
   };
 
@@ -145,8 +136,8 @@ const App = () => {
         status: string,
         isComplete = false,
         hasError = false,
-        fileSizeBeforeCompression: number | undefined = undefined,
-        fileSizeAfterCompression: number | undefined = undefined
+        fileSizeBeforeCompression?: number,
+        fileSizeAfterCompression?: number,
       ) => {
         setFileProgresses((prev) =>
           prev.map((fp, index) =>
@@ -158,16 +149,12 @@ const App = () => {
                   isComplete,
                   hasError,
                   fileSizeBeforeCompression:
-                    fileSizeBeforeCompression ??
-                    fp.fileSizeBeforeCompression ??
-                    0,
+                    fileSizeBeforeCompression ?? fp.fileSizeBeforeCompression ?? 0,
                   fileSizeAfterCompression:
-                    fileSizeAfterCompression ??
-                    fp.fileSizeAfterCompression ??
-                    0,
+                    fileSizeAfterCompression ?? fp.fileSizeAfterCompression ?? 0,
                 }
-              : fp
-          )
+              : fp,
+          ),
         );
       };
 
@@ -190,13 +177,7 @@ const App = () => {
         await ffmpeg.writeFile(inputName, await fetchFile(file));
         console.log("File written successfully");
 
-        updateFileProgress(
-          2,
-          "Starting compression...",
-          false,
-          false,
-          file.size
-        );
+        updateFileProgress(2, "Starting compression...", false, false, file.size);
 
         // Manual progress updates as fallback
         const progressInterval = setInterval(() => {
@@ -209,7 +190,7 @@ const App = () => {
                 return prev.map((fp, index) =>
                   index === currentIndex
                     ? { ...fp, progress: newProgress, status: "Compressing..." }
-                    : fp
+                    : fp,
                 );
               }
               return prev;
@@ -242,53 +223,35 @@ const App = () => {
 
         updateFileProgress(98, "Creating thumbnail...");
         const mp4Data = await ffmpeg.readFile(outputMp4Name);
-        const mp4Blob = new Blob(
-          [new Uint8Array(mp4Data as unknown as ArrayBuffer)],
-          { type: "video/mp4" }
-        );
+        const mp4Blob = new Blob([new Uint8Array(mp4Data as unknown as ArrayBuffer)], {
+          type: "video/mp4",
+        });
         processedMp4Files.push({ filename: outputMp4Name, blob: mp4Blob });
 
         // Extract first frame as jpg
-        await ffmpeg.exec([
-          "-i",
-          inputName,
-          "-ss",
-          "0",
-          "-frames:v",
-          "1",
-          outputThumbnailName,
-        ]);
+        await ffmpeg.exec(["-i", inputName, "-ss", "0", "-frames:v", "1", outputThumbnailName]);
 
         updateFileProgress(99, "Finalizing...");
         const thumbData = await ffmpeg.readFile(outputThumbnailName);
-        const thumbBlob = new Blob(
-          [new Uint8Array(thumbData as unknown as ArrayBuffer).buffer],
-          { type: "image/jpeg" }
-        );
+        const thumbBlob = new Blob([new Uint8Array(thumbData as unknown as ArrayBuffer).buffer], {
+          type: "image/jpeg",
+        });
         processedThumbnailFiles.push({
           filename: outputThumbnailName,
           blob: thumbBlob,
         });
 
         // Clean up FS
-        ffmpeg.deleteFile(inputName);
-        ffmpeg.deleteFile(outputMp4Name);
-        ffmpeg.deleteFile(outputThumbnailName);
+        await ffmpeg.deleteFile(inputName);
+        await ffmpeg.deleteFile(outputMp4Name);
+        await ffmpeg.deleteFile(outputThumbnailName);
 
-        updateFileProgress(
-          100,
-          "Complete!",
-          true,
-          false,
-          file.size,
-          mp4Blob.size
-        );
+        updateFileProgress(100, "Complete!", true, false, file.size, mp4Blob.size);
 
         setMp4Files(processedMp4Files);
         setThumbnailFiles(processedThumbnailFiles);
       } catch (err: unknown) {
-        const errorMessage =
-          err instanceof Error ? err.message : "An unknown error occurred";
+        const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
         updateFileProgress(0, `Error: ${errorMessage}`, false, true);
       } finally {
         currentFileIndexRef.current = -1; // Reset current file index
@@ -331,9 +294,7 @@ const App = () => {
       <h1 className="text-center">MP4 Compressor</h1>
 
       {!loaded ? (
-        <div
-          className={`w-full p-8 rounded-lg shadow-md text-center transition-colors bg-white`}
-        >
+        <div className={`w-full p-8 rounded-lg shadow-md text-center transition-colors bg-white`}>
           <p className="animate-pulse">Loading compression binary</p>
         </div>
       ) : (
@@ -360,9 +321,7 @@ const App = () => {
             />
           </p>
 
-          <div className="text-slate-500 text-sm mt-4">
-            {statusText ?? <>&nbsp;</>}
-          </div>
+          <div className="text-slate-500 text-sm mt-4">{statusText ?? <>&nbsp;</>}</div>
 
           {fileProgresses.length > 0 && (
             <div className="mt-4">
@@ -380,9 +339,7 @@ const App = () => {
                   {fileProgresses.map((fp, index) => (
                     <tr key={index}>
                       <td className="flex justify-between items-center mb-2">
-                        <h4 className="not-prose break-all text-sm">
-                          {fp.filename}
-                        </h4>
+                        <h4 className="not-prose break-all text-sm">{fp.filename}</h4>
                       </td>
                       <td>
                         <div className="progress-bar min-w-[200px] w-full h-5 bg-gray-200 rounded-full overflow-hidden">
@@ -391,8 +348,8 @@ const App = () => {
                               fp.hasError
                                 ? "bg-red-500"
                                 : fp.isComplete
-                                ? "bg-green-600"
-                                : "bg-sky-600"
+                                  ? "bg-green-600"
+                                  : "bg-sky-600"
                             }`}
                             style={{ width: `${fp.progress}%` }}
                           />
@@ -412,9 +369,7 @@ const App = () => {
                           {mp4Files[index] && (
                             <a
                               aria-label="Download MP4"
-                              href={URL.createObjectURL(
-                                mp4Files[index].blob as Blob
-                              )}
+                              href={URL.createObjectURL(mp4Files[index].blob as Blob)}
                               download={mp4Files[index].filename}
                               className="hover:underline text-sky-600 hover:text-sky-800 flex items-center gap-1"
                             >
@@ -424,9 +379,7 @@ const App = () => {
                           {thumbnailFiles[index] && (
                             <a
                               aria-label="Download JPG"
-                              href={URL.createObjectURL(
-                                thumbnailFiles[index].blob as Blob
-                              )}
+                              href={URL.createObjectURL(thumbnailFiles[index].blob as Blob)}
                               download={thumbnailFiles[index].filename}
                               className="hover:underline text-sky-600 hover:text-sky-800 flex items-center gap-1"
                             >
@@ -450,9 +403,7 @@ const App = () => {
                 className="flex items-center gap-x-1.5 rounded-md bg-sky-600 px-2.5 py-1.5 text-sm font-semibold text-white shadow-xs hover:bg-sky-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:opacity-50"
               >
                 <DownloadIcon className="size-4" />
-                <span>
-                  {isDownloading ? "Zipping..." : "Download All as ZIP"}
-                </span>
+                <span>{isDownloading ? "Zipping..." : "Download All as ZIP"}</span>
               </button>
             </div>
           )}
@@ -461,23 +412,19 @@ const App = () => {
 
       <div className="text-center mt-8 prose-sm prose mx-auto max-w-3xl">
         <p>
-          This tool compresses MP4 files to reduce their size. It also extracts
-          the first frame of the video as a thumbnail. This tool is free and
-          open source. You can find the source code on{" "}
-          <a href="https://github.com/michaelbonner/mp4-compressor">GitHub</a>.
+          This tool compresses MP4 files to reduce their size. It also extracts the first frame of
+          the video as a thumbnail. This tool is free and open source. You can find the source code
+          on <a href="https://github.com/michaelbonner/mp4-compressor">GitHub</a>.
         </p>
         <p>
-          <strong>Privacy note:</strong> Videos never leave your computer! All
-          of the processing happens locally on your device.
+          <strong>Privacy note:</strong> Videos never leave your computer! All of the processing
+          happens locally on your device.
         </p>
         <p className="mt-8 mb-0">
-          Provided by{" "}
-          <a href="https://bootpackdigital.com/">Bootpack Digital</a>
+          Provided by <a href="https://bootpackdigital.com/">Bootpack Digital</a>
           <br />
           Come check us out so we can{" "}
-          <a href="https://bootpackdigital.com/">
-            build a custom website or app for you
-          </a>
+          <a href="https://bootpackdigital.com/">build a custom website or app for you</a>
         </p>
         <p className="mt-0">
           <a href="https://bootpackdigital.com/">
