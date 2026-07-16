@@ -18,14 +18,14 @@
     "jszip": "^3.10.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "tailwindcss": "^4.3.2"
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.11",
     "@tailwindcss/typography": "^0.5.20",
-    "@tailwindcss/vite": "^4.3.2",
+    "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.0.3",
-    "typescript": "~6.0.3",
+    "typescript": "^6.0.3",
     "vite": "npm:@voidzero-dev/vite-plus-core@^0.2.4",
     "vite-plus": "^0.2.4"
   },
